@@ -1,0 +1,34 @@
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      DEMO_MODE: "true"
+      DATABASE_URL: sqlite:////app/data/omnipulse.db
+      JWT_SECRET: local-only-change-me-before-deployment
+      JWT_ISSUER: omnipulse-tv
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173
+      AI_PROVIDER: rules
+      AWS_REGION: us-east-1
+    volumes:
+      - ./backend/data:/app/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+        VITE_AUTH_MODE: demo
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
