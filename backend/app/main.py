@@ -53,7 +53,7 @@ from app.schemas.api import (
     TokenResponse,
 )
 from app.services.ai import analyze_command
-from app.services.bootstrap import seed_sample_data
+from app.services.bootstrap import seed_sample_data, sync_live_sports_events
 
 settings = get_settings()
 logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO), format="%(message)s")
@@ -67,6 +67,8 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         with SessionLocal() as db:
             seed_sample_data(db)
+            if settings.sports_provider.lower() in ("api-football", "apifootball") and settings.sports_provider_api_key:
+                sync_live_sports_events(db)
     yield
 
 
@@ -368,6 +370,13 @@ def me(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     profile = _profile_for_user(db, user)
     household = db.get(Household, user["household_id"])
     return {"subject": user["sub"], "demo": user["demo"], "household": {"id": household.id, "name": household.name}, "profile": {"id": profile.id, "nickname": profile.nickname, "profile_type": profile.profile_type, "preferences": profile.preferences}}
+
+
+@app.post("/v1/sports/sync", tags=["sports"])
+def sync_sports_data(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Triggers an on-demand sync of live/today matches from configured sports provider."""
+    synced = sync_live_sports_events(db)
+    return {"status": "ok", "synced_events": synced, "provider": settings.sports_provider}
 
 
 @app.get("/v1/sports/events", tags=["sports"])

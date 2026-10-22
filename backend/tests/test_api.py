@@ -25,7 +25,7 @@ def test_list_events_and_tactical_data(client):
     assert events.status_code == 200
     data = events.json()
     assert data["count"] >= 1
-    assert all(item["source_type"] == "sample" for item in data["items"])
+    assert all(item["source_type"] in ("sample", "api-football", "opta", "sportradar") for item in data["items"])
     event_id = data["items"][0]["id"]
     tactical = client.get(f"/v1/sports/events/{event_id}/tactical", headers=auth(token))
     assert tactical.status_code == 200

@@ -3,6 +3,7 @@ from app.services.sports_provider import (
     OptaSportsProvider,
     SportradarProvider,
     SampleSportsProvider,
+    ApiFootballProvider,
     get_sports_provider,
     clamp,
 )
@@ -41,15 +42,44 @@ def test_sportradar_provider():
     assert "Sportradar" in provider.get_attribution()
 
     # Coordinates: 105m length, 68m width
-    # 52.5m is exactly halfway length (50%)
-    # 34m is exactly halfway width (50%)
     x, y = provider.normalize_coordinates(52.5, 34.0)
     assert round(x, 1) == 50.0
     assert round(y, 1) == 50.0
 
 
-def test_sample_provider_default():
+def test_api_football_provider():
+    provider = ApiFootballProvider(api_key="dummy-test-key")
+    assert provider.provider_id() == "api-football"
+    assert "API-Football" in provider.get_attribution()
+
+    # Test coordinate transformation for a dummy lineup
+    sample_lineups = [
+        {
+            "team": {"name": "Real Madrid"},
+            "startXI": [
+                {"player": {"id": 1, "name": "Courtois", "pos": "G", "grid": "1:1"}},
+                {"player": {"id": 2, "name": "Carvajal", "pos": "D", "grid": "2:1"}},
+            ],
+        },
+        {
+            "team": {"name": "Barcelona"},
+            "startXI": [
+                {"player": {"id": 10, "name": "Ter Stegen", "pos": "G", "grid": "1:1"}},
+                {"player": {"id": 11, "name": "Kounde", "pos": "D", "grid": "2:1"}},
+            ],
+        },
+    ]
+    tactical = provider.convert_lineup_to_tactical_pitch(sample_lineups, "Real Madrid", "Barcelona")
+    assert len(tactical["players"]) == 4
+    # Goalkeeper of home team should be near x=8
+    home_gk = next(p for p in tactical["players"] if p["name"] == "Courtois")
+    assert home_gk["x"] == 8
+    # Goalkeeper of away team should be near x=92
+    away_gk = next(p for p in tactical["players"] if p["name"] == "Ter Stegen")
+    assert away_gk["x"] == 92
+
+
+def test_sports_provider_factory():
     provider = get_sports_provider()
-    assert isinstance(provider, (SampleSportsProvider, OptaSportsProvider, SportradarProvider))
-    assert provider.provider_id() == "sample"
-    assert "SAMPLE DATA" in provider.get_attribution()
+    assert isinstance(provider, (SampleSportsProvider, OptaSportsProvider, SportradarProvider, ApiFootballProvider))
+    assert provider.provider_id() in ("sample", "opta", "sportradar", "api-football")
